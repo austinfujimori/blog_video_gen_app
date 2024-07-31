@@ -1,3 +1,4 @@
+// app/layout.tsx or pages/_app.tsx (depending on your file structure)
 import { Analytics } from "@vercel/analytics/react";
 import { Metadata } from "next";
 import "../styles/globals.css";
@@ -37,7 +38,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-[#17181C] text-white">
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="bg-[#000] text-white">
         {children}
         <Analytics />
       </body>

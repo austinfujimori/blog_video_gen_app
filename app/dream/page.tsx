@@ -1,280 +1,222 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import Image from "next/image";
-import { useState } from "react";
-import { UrlBuilder } from "@bytescale/sdk";
-import { UploadWidgetConfig } from "@bytescale/upload-widget";
-import { UploadDropzone } from "@bytescale/upload-widget-react";
-import { CompareSlider } from "../../components/CompareSlider";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation"; // import useRouter
+import DropDown from "../../components/DropDown";
 import Footer from "../../components/Footer";
 import Header from "../../components/Header";
-import LoadingDots from "../../components/LoadingDots";
 import ResizablePanel from "../../components/ResizablePanel";
-import Toggle from "../../components/Toggle";
-import appendNewToName from "../../utils/appendNewToName";
-import downloadPhoto from "../../utils/downloadPhoto";
-import DropDown from "../../components/DropDown";
-import { roomType, rooms, themeType, themes } from "../../utils/dropdownTypes";
-
-const options: UploadWidgetConfig = {
-  apiKey: !!process.env.NEXT_PUBLIC_UPLOAD_API_KEY
-      ? process.env.NEXT_PUBLIC_UPLOAD_API_KEY
-      : "free",
-  maxFileCount: 1,
-  mimeTypes: ["image/jpeg", "image/png", "image/jpg"],
-  editor: { images: { crop: false } },
-  styles: {
-    colors: {
-      primary: "#2563EB", // Primary buttons & links
-      error: "#d23f4d", // Error messages
-      shade100: "#fff", // Standard text
-      shade200: "#fffe", // Secondary button text
-      shade300: "#fffd", // Secondary button text (hover)
-      shade400: "#fffc", // Welcome text
-      shade500: "#fff9", // Modal close button
-      shade600: "#fff7", // Border
-      shade700: "#fff2", // Progress indicator background
-      shade800: "#fff1", // File item background
-      shade900: "#ffff", // Various (draggable crop buttons, etc.)
-    },
-  },
-};
+import { styleType, durationType, themes, rooms } from "../../utils/dropdownTypes";
+import LoadingDots from "../../components/LoadingDots";
+import { PencilIcon } from "@heroicons/react/24/outline";  // Updated import path for Heroicons v2
 
 export default function DreamPage() {
-  const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
-  const [restoredImage, setRestoredImage] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [restoredLoaded, setRestoredLoaded] = useState<boolean>(false);
-  const [sideBySide, setSideBySide] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [photoName, setPhotoName] = useState<string | null>(null);
-  const [theme, setTheme] = useState<themeType>("Modern");
-  const [room, setRoom] = useState<roomType>("Living Room");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [theme, setTheme] = useState<durationType>("Tiktok (~ 30 sec)");
+  const [room, setRoom] = useState<styleType>("Cartoony");
+  const [showResult, setShowResult] = useState(false);
+  const [url, setUrl] = useState("");
+  const [script, setScript] = useState("");
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const contentRef = useRef(null);
+  const searchParams = useSearchParams();
+  const router = useRouter(); // initialize router
 
-  const UploadDropZone = () => (
-    <UploadDropzone
-      options={options}
-      onUpdate={({ uploadedFiles }) => {
-        if (uploadedFiles.length !== 0) {
-          const image = uploadedFiles[0];
-          const imageName = image.originalFile.originalFileName;
-          const imageUrl = UrlBuilder.url({
-            accountId: image.accountId,
-            filePath: image.filePath,
-            options: {
-              transformation: "preset",
-              transformationPreset: "thumbnail"
-            }
-          });
-          setPhotoName(imageName);
-          setOriginalPhoto(imageUrl);
-          generatePhoto(imageUrl);
-        }
-      }}
-      width="670px"
-      height="250px"
-    />
-  );
-
-  async function generatePhoto(fileUrl: string) {
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    setLoading(true);
-    const res = await fetch("/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ imageUrl: fileUrl, theme, room }),
-    });
-
-    let newPhoto = await res.json();
-    if (res.status !== 200) {
-      setError(newPhoto);
-    } else {
-      setRestoredImage(newPhoto[1]);
+  useEffect(() => {
+    const urlParam = searchParams.get("url");
+    if (urlParam) {
+      setUrl(urlParam);
     }
-    setTimeout(() => {
+  }, [searchParams]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setShowResult(false);
+
+    try {
+      const response = await fetch('/api/generate-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url, duration: theme }),
+      });
+
+      const data = await response.json();
+      setScript(data.scenes.join("\n") || ""); // Join scenes into a single string with new lines
+      setShowResult(true);
+    } catch (error) {
+      setError("Failed to generate script");
+    } finally {
       setLoading(false);
-    }, 1300);
-  }
+    }
+  };
+
+  const handleScriptChange = (e) => {
+    const selection = window.getSelection();
+    const cursorPosition = selection.getRangeAt(0).startOffset;
+    setScript(e.target.innerText);
+    // Reset cursor position
+    setTimeout(() => {
+      const range = document.createRange();
+      range.setStart(contentRef.current.childNodes[0], cursorPosition);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }, 0);
+  };
+
+  const handleContinue = () => {
+    setShowConfirmation(true);
+  };
+
+  const confirmContinue = () => {
+    setShowConfirmation(false);
+    router.push(`/display?script=${encodeURIComponent(script)}&styleType=${encodeURIComponent(room)}`); // navigate to new page
+  };
+
+  const cancelContinue = () => {
+    setShowConfirmation(false);
+  };
+
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.style.height = 'auto';
+      contentRef.current.style.height = `${contentRef.current.scrollHeight}px`;
+    }
+  }, [script]);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.selectNodeContents(contentRef.current);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }, [showResult]);
 
   return (
-    <div className="flex max-w-6xl mx-auto flex-col items-center justify-center py-2 min-h-screen">
-      <Header />
-      <main className="flex flex-1 w-full flex-col items-center justify-center text-center px-4 mt-4 sm:mb-0 mb-8">
-        <h1 className="mx-auto max-w-4xl font-display text-4xl font-bold tracking-normal text-slate-100 sm:text-6xl mb-5">
-          Generate your <span className="text-blue-600">dream</span> room
-        </h1>
+    <div className="relative w-full min-h-screen font-quicksand bg-light-gray overflow-hidden">
+      <Header className="fixed top-0 left-0 w-full z-30" /> {/* Ensure header is at the top */}
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center text-center px-4 pt-20 pb-20 w-full overflow-y-auto"> {/* Adjust padding to compensate for header */}
         <ResizablePanel>
           <AnimatePresence mode="wait">
-            <motion.div className="flex justify-between items-center w-full flex-col mt-4">
-              {!restoredImage && (
+            <motion.div
+              className="flex justify-between items-center w-full flex-col mt-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="space-y-4 w-full max-w-sm">
+                <div className="flex mt-3 items-center space-x-3">
+                  <p className="text-left font-medium">Duration</p>
+                </div>
+                <DropDown
+                  theme={theme}
+                  setTheme={(newTheme) => setTheme(newTheme as typeof theme)}
+                  themes={themes}
+                />
+              </div>
+              <div className="space-y-4 w-full max-w-sm">
+                <div className="flex mt-10 items-center space-x-3">
+                  <p className="text-left font-medium">Visual Style</p>
+                </div>
+                <DropDown
+                  theme={room}
+                  setTheme={(newRoom) => setRoom(newRoom as typeof room)}
+                  themes={rooms}
+                />
+              </div>
+              <div className="mb-10 w-full max-w-sm">
+                <div className="flex mt-6 w-96 items-center space-x-3"></div>
+                <div className="flex justify-center mt-6">
+                  <form onSubmit={handleSubmit} className="w-full max-w-xl flex justify-center animate-fade-in">
+                    <button
+                      type="submit"
+                      className="generate-button bg-gray-600 text-white font-medium px-5 py-3 rounded-2xl transition-colors transition-transform duration-300 ease-in-out transform hover:bg-gray-500 hover:scale-105"
+                    >
+                      {loading ? <LoadingDots color="white" style="large" /> : "Generate Video Script"}
+                    </button>
+                  </form>
+                </div>
+              </div>
+              {showResult && (
                 <>
-                  <div className="space-y-4 w-full max-w-sm">
-                    <div className="flex mt-3 items-center space-x-3">
-                      <Image
-                        src="/number-1-white.svg"
-                        width={30}
-                        height={30}
-                        alt="1 icon"
-                      />
-                      <p className="text-left font-medium">
-                        Choose your room theme.
-                      </p>
+                  <div
+                    className="mt-6 text-left w-full max-w-lg py-6 px-12 bg-gray-700 rounded-lg transform transition-all duration-300 relative"
+                  >  {/* Container for the script with max-w-lg */}
+                    <div className="absolute top-4 right-4 flex items-center text-white p-1 rounded-full">
+                      <PencilIcon className="h-4 w-4" />
                     </div>
-                    <DropDown
-                      theme={theme}
-                      setTheme={(newTheme) =>
-                        setTheme(newTheme as typeof theme)
-                      }
-                      themes={themes}
-                    />
+                    <div
+                      ref={contentRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      className="w-full bg-transparent border border-transparent text-white whitespace-pre-line focus:outline-none resize-none overflow-hidden"
+                      onInput={handleScriptChange}
+                      style={{ minHeight: '4rem' }} // Ensure it has a minimum height
+                    >
+                      {script}
+                    </div>
                   </div>
-                  <div className="space-y-4 w-full max-w-sm">
-                    <div className="flex mt-10 items-center space-x-3">
-                      <Image
-                        src="/number-2-white.svg"
-                        width={30}
-                        height={30}
-                        alt="1 icon"
-                      />
-                      <p className="text-left font-medium">
-                        Choose your room type.
-                      </p>
-                    </div>
-                    <DropDown
-                      theme={room}
-                      setTheme={(newRoom) => setRoom(newRoom as typeof room)}
-                      themes={rooms}
-                    />
-                  </div>
-                  <div className="mt-4 w-full max-w-sm">
-                    <div className="flex mt-6 w-96 items-center space-x-3">
-                      <Image
-                        src="/number-3-white.svg"
-                        width={30}
-                        height={30}
-                        alt="1 icon"
-                      />
-                      <p className="text-left font-medium">
-                        Upload a picture of your room.
-                      </p>
-                    </div>
+                  <div className="flex justify-center mt-14 mb-20">
+                    <button
+                      onClick={handleContinue}
+                      className="generate-button bg-gray-600 text-white font-medium px-5 py-3 rounded-2xl transition-colors transition-transform duration-300 ease-in-out transform hover:bg-gray-500 hover:scale-105"
+                    >
+                      Continue
+                    </button>
                   </div>
                 </>
               )}
-              {restoredImage && (
-                <div>
-                  Here's your remodeled <b>{room.toLowerCase()}</b> in the{" "}
-                  <b>{theme.toLowerCase()}</b> theme!{" "}
-                </div>
-              )}
-              <div
-                className={`${
-                  restoredLoaded ? "visible mt-6 -ml-8" : "invisible"
-                }`}
-              >
-                <Toggle
-                  className={`${restoredLoaded ? "visible mb-6" : "invisible"}`}
-                  sideBySide={sideBySide}
-                  setSideBySide={(newVal) => setSideBySide(newVal)}
-                />
-              </div>
-              {restoredLoaded && sideBySide && (
-                <CompareSlider
-                  original={originalPhoto!}
-                  restored={restoredImage!}
-                />
-              )}
-              {!originalPhoto && <UploadDropZone />}
-              {originalPhoto && !restoredImage && (
-                <Image
-                  alt="original photo"
-                  src={originalPhoto}
-                  className="rounded-2xl h-96"
-                  width={475}
-                  height={475}
-                />
-              )}
-              {restoredImage && originalPhoto && !sideBySide && (
-                <div className="flex sm:space-x-4 sm:flex-row flex-col">
-                  <div>
-                    <h2 className="mb-1 font-medium text-lg">Original Room</h2>
-                    <Image
-                      alt="original photo"
-                      src={originalPhoto}
-                      className="rounded-2xl relative w-full h-96"
-                      width={475}
-                      height={475}
-                    />
-                  </div>
-                  <div className="sm:mt-0 mt-8">
-                    <h2 className="mb-1 font-medium text-lg">Generated Room</h2>
-                    <a href={restoredImage} target="_blank" rel="noreferrer">
-                      <Image
-                        alt="restored photo"
-                        src={restoredImage}
-                        className="rounded-2xl relative sm:mt-0 mt-2 cursor-zoom-in w-full h-96"
-                        width={475}
-                        height={475}
-                        onLoadingComplete={() => setRestoredLoaded(true)}
-                      />
-                    </a>
-                  </div>
-                </div>
-              )}
-              {loading && (
-                <button
-                  disabled
-                  className="bg-blue-500 rounded-full text-white font-medium px-4 pt-2 pb-3 mt-8 w-40"
-                >
-                  <span className="pt-4">
-                    <LoadingDots color="white" style="large" />
-                  </span>
-                </button>
-              )}
-              {error && (
-                <div
-                  className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mt-8"
-                  role="alert"
-                >
-                  <span className="block sm:inline">{error}</span>
-                </div>
-              )}
-              <div className="flex space-x-2 justify-center">
-                {originalPhoto && !loading && (
-                  <button
-                    onClick={() => {
-                      setOriginalPhoto(null);
-                      setRestoredImage(null);
-                      setRestoredLoaded(false);
-                      setError(null);
-                    }}
-                    className="bg-blue-500 rounded-full text-white font-medium px-4 py-2 mt-8 hover:bg-blue-500/80 transition"
-                  >
-                    Generate New Room
-                  </button>
-                )}
-                {restoredLoaded && (
-                  <button
-                    onClick={() => {
-                      downloadPhoto(
-                        restoredImage!,
-                        appendNewToName(photoName!)
-                      );
-                    }}
-                    className="bg-white rounded-full text-black border font-medium px-4 py-2 mt-8 hover:bg-gray-100 transition"
-                  >
-                    Download Generated Room
-                  </button>
-                )}
-              </div>
+              {error && <p className="text-red-500">{error}</p>}
             </motion.div>
           </AnimatePresence>
         </ResizablePanel>
       </main>
-      <Footer />
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <AnimatePresence>
+          <motion.div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              className="bg-[rgba(0,0,0,0.9)] p-6 rounded-lg shadow-lg text-center"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <p className="text-white">Are you sure? You cannot change your script after this.</p>
+              <div className="mt-4 flex justify-center space-x-4">
+                <button
+                  onClick={confirmContinue}
+                  className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={cancelContinue}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+      )}
+      {/* <Footer /> */}
     </div>
   );
 }

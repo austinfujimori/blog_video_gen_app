@@ -1,30 +1,16 @@
-export type themeType =
-  | "Modern"
-  | "Vintage"
-  | "Minimalist"
-  | "Professional"
-  | "Tropical";
+export type durationType =
+  | "Tiktok (~ 30 sec)"
+  | "Long (~ 1:00 min)";
 
-export type roomType =
-  | "Living Room"
-  | "Dining Room"
-  | "Bedroom"
-  | "Bathroom"
-  | "Office"
-  | "Gaming Room";
+export type styleType =
+  | "Cartoony"
+  | "Realistic";
 
-export const themes: themeType[] = [
-  "Modern",
-  "Minimalist",
-  "Professional",
-  "Tropical",
-  "Vintage",
+export const themes: durationType[] = [
+  "Tiktok (~ 30 sec)",
+  "Long (~ 1:00 min)"
 ];
-export const rooms: roomType[] = [
-  "Living Room",
-  "Dining Room",
-  "Office",
-  "Bedroom",
-  "Bathroom",
-  "Gaming Room",
+export const rooms: styleType[] = [
+  "Cartoony",
+  "Realistic"
 ];
