@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
-import { AiOutlineReload } from "react-icons/ai";
+import { FiRefreshCcw } from "react-icons/fi"; // Import a different icon for regenerate
 import Confetti from "react-confetti";
 
 export default function DisplayPage() {
@@ -17,18 +17,30 @@ export default function DisplayPage() {
   const [movieGenerated, setMovieGenerated] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
   const [videos, setVideos] = useState([]);
-  const [fullNarrationFile, setFullNarrationFile] = useState("");
-  const [musicFilePath, setMusicFilePath] = useState("");
   const [sceneDurations, setSceneDurations] = useState([]);
   const [narrationScript, setNarrationScript] = useState([]);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showRegenConfirmation, setShowRegenConfirmation] = useState(false);
   const [regenIndex, setRegenIndex] = useState(null);
   const [loadingVideoIndex, setLoadingVideoIndex] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(true);
+
+  const musicFilePath = "/api/music"; // Ensure the correct path
+  const fullNarrationFile = "/api/narration"; // Ensure the correct path
 
   useEffect(() => {
     handleShowVideos();
   }, []);
+
+  useEffect(() => {
+    if (movieGenerated) {
+      const confettiTimer = setTimeout(() => {
+        setShowConfetti(false);
+      }, 60000); // 1 minute = 60000 milliseconds
+
+      return () => clearTimeout(confettiTimer);
+    }
+  }, [movieGenerated]);
 
   const handleShowVideos = async () => {
     setLoadingScenes(true);
@@ -47,8 +59,6 @@ export default function DisplayPage() {
 
       const data = await response.json();
       setVideos(data.videoPaths);
-      setFullNarrationFile(data.fullNarrationFile);
-      setMusicFilePath(data.musicFilePath);
       setSceneDurations(data.sceneDurations);
       setNarrationScript(data.narrationScript);
     } catch (error) {
@@ -71,6 +81,13 @@ export default function DisplayPage() {
 
     setShowRegenConfirmation(false);
     setLoadingVideoIndex(regenIndex);
+
+    // Switch the scene content to "Regenerating scene" animation
+    setVideos(prevVideos => {
+      const updatedVideos = [...prevVideos];
+      updatedVideos[regenIndex] = 'regenerating'; // Set a placeholder for regenerating scene
+      return updatedVideos;
+    });
 
     try {
       const videoName = `gen_video_${regenIndex}_0000.mp4`;
@@ -149,6 +166,9 @@ export default function DisplayPage() {
   return (
     <div className="relative w-full min-h-screen font-quicksand bg-light-gray overflow-hidden">
       <Header className="fixed top-0 left-0 w-full z-30" />
+      {movieGenerated && showConfetti && (
+        <Confetti width={window.innerWidth} height={window.innerHeight} numberOfPieces={500} />
+      )}
       <motion.main
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -160,33 +180,42 @@ export default function DisplayPage() {
           <p className="text-white text-xl">Generating Scenes...</p>
         ) : (
           <div className="space-y-4 w-full max-w-5xl py-6 px-12 rounded-lg transform transition-all duration-300 relative text-white">
+            <div className="items-center mb-4">
+              <p className="text-4xl font-bold pb-4 text-left">Generated {videos.length} Scenes</p>
+              <p className="text-lg text-gray-300 pb-4 text-left">Before creating our final movie, check to see if you are okay with these videos generated from AI</p>
+            </div>
             {videos.length > 0 && (
-              <div className="w-full mt-4 mb-8 overflow-x-auto">
+              <div className="w-full mt-4 pb-8 overflow-x-auto">
                 <div className="flex space-x-4">
                   {videos.map((video, index) => (
-                    <div key={index} className="flex-shrink-0 text-center">
-                      {loadingVideoIndex === index ? (
-                        <div className="flex flex-col items-center">
-                          <p className="text-white text-xl">Regenerating Scene...</p>
-                          <div className="loader mt-2"></div>
+                    <div key={index} className="flex-shrink-0 text-center bg-[rgb(20,20,20)] rounded-lg p-4 w-[500px]">
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="text-2xl font-bold">Scene {index + 1}</div>
+                        <button
+                          onClick={() => handleReGenerate(index)}
+                          className="bg-gray-600 text-white font-medium px-3 py-1 rounded-lg transition-colors transition-transform duration-300 ease-in-out transform hover:bg-gray-500 hover:scale-105 flex items-center"
+                          disabled={loadingScenes || loadingMovie}
+                        >
+                          <span className="text-sm mr-2">Regenerate video</span>
+                          <FiRefreshCcw size={16} />
+                        </button>
+                      </div>
+                      {video === 'regenerating' ? (
+                        <div className="flex flex-col items-center justify-center h-[281px]">
+                          <p className="text-white text-2xl font-bold mb-2">Regenerating Scene</p>
+                          <div className="loader mb-4"></div>
+                          <p className="text-white text-lg">This may take a few minutes.</p>
                         </div>
                       ) : (
-                        <>
-                          <video key={video} controlsList="nodownload" controls width="500px">
-                            <source src={video} type="video/mp4" />
-                            Your browser does not support the video tag.
-                          </video>
-                          <div className="flex items-center justify-center mt-2">
-                            <span className="text-sm">Scene {index + 1}</span>
-                            <button
-                              onClick={() => handleReGenerate(index)}
-                              className="bg-gray-600 text-white font-medium ml-2 px-1 py-1 rounded-full transition-colors transition-transform duration-300 ease-in-out transform hover:bg-gray-500 hover:scale-105"
-                              disabled={loadingScenes || loadingMovie}
-                            >
-                              <AiOutlineReload size={16} />
-                            </button>
-                          </div>
-                        </>
+                        <video key={video} controlsList="nodownload" controls width="100%">
+                          <source src={video} type="video/mp4" />
+                          Your browser does not support the video tag.
+                        </video>
+                      )}
+                      {video !== 'regenerating' && (
+                        <div className="text-left w-full max-w-lg py-6 px-12 bg-[rgb(0,0,0)] rounded-bottom transform transition-all duration-300 relative text-white text-sm mb-0">
+                          {narrationScript[index]}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -194,29 +223,26 @@ export default function DisplayPage() {
               </div>
             )}
             {movieGenerated ? (
-              <>
-                <Confetti />
-                <p className="font-quicksand text-5xl font-bold tracking-tight text-gray-300 sm:text-5xl">Your movie is done!</p>
-              </>
+              <div className="w-full flex flex-col items-center space-y-8 mt-16">
+                <div className="relative w-full flex flex-col items-center">
+                  <p className="font-quicksand text-5xl font-bold tracking-tight text-gray-300 sm:text-5xl mt-8">Your movie is done!</p>
+                  <a href={videoUrl} download="output_video.mp4" className="mt-8 inline-block bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-500">
+                    Download Video
+                  </a>
+                </div>
+                <video controls width="100%" className="rounded-lg shadow-lg mt-4">
+                  <source src={videoUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              </div>
             ) : (
               <button
                 onClick={handleGenerateMovie}
-                className="bg-gray-600 text-white font-medium px-5 py-3 rounded-2xl transition-colors transition-transform duration-300 ease-in-out text-1xl transform hover:bg-gray-500 hover:scale-105"
+                className="bg-indigo-600 text-white font-medium px-5 py-3 rounded-2xl transition-colors transition-transform duration-300 ease-in-out text-1xl transform hover:bg-indigo-500 hover:scale-105"
                 disabled={loadingMovie}
               >
                 {loadingMovie ? 'Generating Movie...' : 'Create Movie'}
               </button>
-            )}
-            {videoUrl && (
-              <div className="mt-8">
-                <video controls width="100%">
-                  <source src={videoUrl} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-                <a href={videoUrl} download="output_video.mp4" className="mt-4 inline-block bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-500">
-                  Download Video
-                </a>
-              </div>
             )}
           </div>
         )}
@@ -243,7 +269,7 @@ export default function DisplayPage() {
               <div className="mt-4 flex justify-center space-x-4">
                 <button
                   onClick={confirmGenerateMovie}
-                  className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-500"
                 >
                   Yes
                 </button>
@@ -280,7 +306,7 @@ export default function DisplayPage() {
               <div className="mt-4 flex justify-center space-x-4">
                 <button
                   onClick={confirmReGenerate}
-                  className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-500"
                 >
                   Yes
                 </button>
@@ -305,7 +331,10 @@ export default function DisplayPage() {
           border-left-color: #ffffff;
           animation: spin 1s ease infinite;
         }
-
+        .rounded-bottom {
+          border-bottom-left-radius: 8px;
+          border-bottom-right-radius: 8px;
+        }
         @keyframes spin {
           0% {
             transform: rotate(0deg);

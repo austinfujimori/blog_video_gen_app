@@ -10,7 +10,7 @@ export const themes: durationType[] = [
   "Tiktok (~ 30 sec)",
   "Long (~ 1:00 min)"
 ];
-export const rooms: styleType[] = [
+export const styles: styleType[] = [
   "Cartoony",
   "Realistic"
 ];

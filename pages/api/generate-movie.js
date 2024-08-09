@@ -19,6 +19,7 @@ export default function handler(req, res) {
         console.error(`stderr: ${stderr}`);
         return res.status(500).json({ error: 'Failed to generate movie', details: error.message });
       }
+
       try {
         console.log('STDOUT:', stdout);
 

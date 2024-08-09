@@ -30,6 +30,7 @@ export default function handler(req, res) {
             continue;  // Not a JSON line, skip
           }
         }
+        
         if (!jsonOutput) {
           throw new Error('No valid JSON output found');
         }
